@@ -28,7 +28,7 @@
   --ink-dim:#82988c;
   --ink-faint:#3c4a41;
   --line:rgba(94,235,176,.16);
-  --line-strong:rgba(94,235,176,.38);
+  --line-strong:rgba(94,235,176,.4);
   --glow:0 0 1px rgba(94,235,176,.9), 0 0 18px rgba(94,235,176,.15);
   --radius:3px;
 }
@@ -44,8 +44,8 @@ html[data-theme="print"]{
   --ink:#231e13;
   --ink-dim:#6c624a;
   --ink-faint:#b3a888;
-  --line:rgba(35,30,19,.16);
-  --line-strong:rgba(35,30,19,.34);
+  --line:rgba(35,30,19,.18);
+  --line-strong:rgba(35,30,19,.36);
   --glow:none;
 }
 
@@ -53,266 +53,165 @@ html[data-theme="print"]{
 ::selection{ background:var(--phosphor); color:var(--void); }
 
 html,body{
-  margin:0;
-  min-height:100%;
-  background:var(--void);
-  color:var(--ink);
+  margin:0; min-height:100%;
+  background:var(--void); color:var(--ink);
   font-family:'JetBrains Mono', monospace;
   transition:background .5s ease, color .5s ease;
 }
-
 body{ position:relative; overflow-x:hidden; font-size:14px; }
 
-/* subtle vignette + scanlines — CRT only, one static texture, no per-element animation */
 .crt-overlay{
   position:fixed; inset:0; z-index:5; pointer-events:none;
   background:
     repeating-linear-gradient(rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,.14) 3px),
     radial-gradient(ellipse at 50% 0%, rgba(94,235,176,.05), transparent 60%),
     radial-gradient(ellipse at 50% 120%, rgba(0,0,0,.55), transparent 55%);
-  opacity:.55;
-  transition:opacity .5s ease;
+  opacity:.5; transition:opacity .5s ease;
 }
 html[data-theme="print"] .crt-overlay{ opacity:0; }
-
-/* faint paper grain — print only */
 .paper-overlay{
   position:fixed; inset:0; z-index:5; pointer-events:none; opacity:0;
   background-image:radial-gradient(rgba(35,30,19,.045) 1px, transparent 1px);
-  background-size:3px 3px;
-  transition:opacity .5s ease;
+  background-size:3px 3px; transition:opacity .5s ease;
 }
 html[data-theme="print"] .paper-overlay{ opacity:1; }
 
 @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
 
 /* ============================================================
-   LAYOUT — one terminal window, chrome and all
+   SESSION BAR — tmux-style status line for the whole app
    ============================================================ */
-.wrap{
-  position:relative; z-index:1;
-  max-width:860px;
-  margin:0 auto;
-  padding:48px 20px 90px;
-}
-
-.term{
-  border:1px solid var(--line-strong);
-  border-radius:8px;
-  background:var(--panel);
-  box-shadow:0 40px 90px -40px rgba(0,0,0,.75), var(--glow);
-  overflow:hidden;
-}
-
-.term-bar{
-  display:flex; align-items:center; gap:10px;
-  padding:11px 16px;
+.session-bar{
+  position:relative; z-index:2;
+  display:flex; align-items:center; gap:18px;
+  padding:9px 22px;
   background:var(--panel-2);
   border-bottom:1px solid var(--line);
+  font-size:11.5px; color:var(--ink-dim);
 }
-.term-bar .dot{ width:9px; height:9px; border-radius:50%; background:var(--ink-faint); }
-.term-bar .dot.r{ background:var(--red); opacity:.75; }
-.term-bar .dot.y{ background:var(--amber); opacity:.75; }
-.term-bar .dot.g{ background:var(--phosphor); opacity:.75; }
-.term-bar .path{
-  margin-left:6px;
-  font-size:12px;
-  color:var(--ink-dim);
-  letter-spacing:.01em;
-}
-
-.term-body{ padding:30px 34px 34px; }
-
-/* toggle switch — physical hardware feel, not sun/moon icons */
-.media-switch{
-  position:absolute; top:48px; right:20px;
-  display:flex; align-items:center; gap:9px;
-  font-size:11px; color:var(--ink-dim);
-}
+.session-bar .name{ color:var(--phosphor); font-weight:700; text-shadow:var(--glow); }
+.session-bar .win{ padding:2px 8px; border-radius:2px; }
+.session-bar .win.active{ background:rgba(94,235,176,.12); color:var(--ink); }
+.session-bar .spacer{ flex:1; }
+.session-bar .clock{ font-variant-numeric:tabular-nums; }
+.media-switch{ display:flex; align-items:center; gap:8px; }
 .media-switch button{
-  position:relative;
-  width:46px; height:24px;
-  border-radius:12px;
-  border:1px solid var(--line-strong);
-  background:var(--panel-2);
-  cursor:pointer;
-  padding:0;
+  position:relative; width:38px; height:20px; border-radius:10px;
+  border:1px solid var(--line-strong); background:var(--panel); cursor:pointer; padding:0;
 }
 .media-switch button::after{
-  content:"";
-  position:absolute; top:2px; left:2px;
-  width:18px; height:18px;
-  border-radius:50%;
-  background:var(--phosphor);
-  box-shadow:var(--glow);
+  content:""; position:absolute; top:2px; left:2px; width:14px; height:14px;
+  border-radius:50%; background:var(--phosphor); box-shadow:var(--glow);
   transition:transform .22s cubic-bezier(.4,0,.2,1);
 }
-html[data-theme="print"] .media-switch button::after{ transform:translateX(22px); }
-.media-switch .lbl{ font-variant-caps:normal; }
+html[data-theme="print"] .media-switch button::after{ transform:translateX(18px); }
 .media-switch .lbl.active{ color:var(--ink); }
 
 /* ============================================================
-   BOOT SEQUENCE — the one orchestrated motion moment
+   LAYOUT — three panes, framed like ncurses/whiptail boxes
    ============================================================ */
-#boot{
-  font-size:13px;
-  line-height:1.75;
-  color:var(--phosphor-dim);
-  min-height:150px;
+.console{
+  position:relative; z-index:1;
+  max-width:1180px; margin:0 auto;
+  padding:26px 22px 90px;
+  display:grid;
+  grid-template-columns:216px minmax(0,1fr) 268px;
+  grid-template-areas:"sys main diag";
+  align-items:start;
+  gap:18px;
 }
-#boot .cursor{
-  display:inline-block; width:7px; height:14px;
-  background:var(--phosphor);
-  vertical-align:-2px;
-  animation:blink 1s steps(1) infinite;
-  box-shadow:var(--glow);
+
+.pane{
+  position:relative;
+  border:1px solid var(--line);
+  border-radius:6px;
+  background:var(--panel);
+  box-shadow:0 30px 70px -38px rgba(0,0,0,.7);
 }
+.pane.active{ border-color:var(--line-strong); box-shadow:0 30px 70px -34px rgba(0,0,0,.75), var(--glow); }
+.pane-tab{
+  position:absolute; top:-10px; left:16px;
+  padding:1px 9px;
+  background:var(--void);
+  border:1px solid var(--line-strong);
+  border-radius:3px;
+  font-size:10.5px; letter-spacing:.02em; color:var(--ink-dim);
+}
+.pane.active .pane-tab{ color:var(--phosphor); text-shadow:var(--glow); }
+.pane-body{ padding:24px 20px 22px; }
+
+#pane-sys{ grid-area:sys; }
+#pane-main{ grid-area:main; }
+#pane-diag{ grid-area:diag; }
+
+/* ---------- sys pane ---------- */
+.status-list{ display:flex; flex-direction:column; gap:12px; margin-bottom:18px; }
+.status-row{ display:flex; align-items:center; gap:9px; font-size:11px; }
+.led{ width:7px; height:7px; border-radius:50%; background:var(--phosphor); box-shadow:var(--glow); animation:breathe 2.6s ease-in-out infinite; flex-shrink:0; }
+.status-row:nth-child(2) .led{ animation-delay:-.8s; }
+.status-row:nth-child(3) .led{ animation-delay:-1.6s; }
+@keyframes breathe{ 0%,100%{ opacity:.4; } 50%{ opacity:1; } }
+.status-row .name{ flex:1; color:var(--ink); }
+.status-row .lat{ color:var(--ink-faint); }
+
+.divider{ border:none; border-top:1px dashed var(--line); margin:16px 0; }
+
+.uptime{ font-size:11px; color:var(--ink-dim); margin-bottom:2px; }
+.uptime .v{ font-size:16px; color:var(--ink); font-weight:700; font-variant-numeric:tabular-nums; }
+
+.tail-label{ font-size:10.5px; color:var(--ink-faint); margin-bottom:8px; }
+.tail-window{ height:150px; overflow:hidden; position:relative; -webkit-mask-image:linear-gradient(transparent, #000 14%, #000 86%, transparent); mask-image:linear-gradient(transparent, #000 14%, #000 86%, transparent); }
+.tail-track{ display:flex; flex-direction:column; gap:7px; animation:scrollTail 22s linear infinite; }
+.tail-track div{ font-size:10px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@keyframes scrollTail{ from{ transform:translateY(0); } to{ transform:translateY(-50%); } }
+
+/* ---------- main pane ---------- */
+#boot{ font-size:12.5px; line-height:1.75; color:var(--phosphor-dim); min-height:120px; }
+#boot .cursor{ display:inline-block; width:7px; height:14px; background:var(--phosphor); vertical-align:-2px; animation:blink 1s steps(1) infinite; box-shadow:var(--glow); }
 @keyframes blink{ 50%{ opacity:0; } }
-
-pre.wordmark{
-  margin:6px 0 14px;
-  font-size:11px;
-  line-height:1.15;
-  color:var(--phosphor);
-  text-shadow:var(--glow);
-  white-space:pre;
-}
-
-#app{
-  opacity:0;
-  max-height:0;
-  overflow:hidden;
-  transition:opacity .6s ease;
-}
-#app.revealed{ opacity:1; max-height:none; overflow:visible; }
-
-.tagline{ color:var(--ink-dim); font-size:12.5px; margin:0 0 30px; }
+pre.wordmark{ margin:4px 0 12px; font-size:10.5px; line-height:1.15; color:var(--phosphor); text-shadow:var(--glow); white-space:pre; overflow-x:auto; }
+#app{ opacity:0; transition:opacity .6s ease; }
+#app.revealed{ opacity:1; }
+.tagline{ color:var(--ink-dim); font-size:12px; margin:0 0 28px; }
 .tagline b{ color:var(--ink); font-weight:600; }
 
-/* ============================================================
-   PROMPT LINES — shell-prompt structure instead of numbered badges
-   ============================================================ */
-.prompt{
-  display:flex; align-items:baseline; gap:10px;
-  margin:0 0 14px;
-  font-size:13px;
-  color:var(--ink-dim);
-}
+.prompt{ display:flex; align-items:baseline; gap:10px; margin:0 0 14px; font-size:13px; color:var(--ink-dim); }
 .prompt .sigil{ color:var(--phosphor); text-shadow:var(--glow); }
 .prompt .cmd{ color:var(--ink); }
-.section{ margin-bottom:34px; }
+.section{ margin-bottom:32px; }
 .section:last-child{ margin-bottom:0; }
 
-/* ============================================================
-   LOG TYPE — flag toggles
-   ============================================================ */
-.flags{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:2px; }
-.flag{
-  flex:1 1 220px;
-  border:1px solid var(--line);
-  border-radius:var(--radius);
-  background:var(--panel-2);
-  padding:13px 15px;
-  cursor:pointer;
-  transition:border-color .15s, background .15s;
-}
+.flags{ display:flex; gap:10px; flex-wrap:wrap; }
+.flag{ flex:1 1 200px; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel-2); padding:13px 15px; cursor:pointer; transition:border-color .15s, background .15s; }
 .flag:hover{ border-color:var(--line-strong); }
-.flag.on{
-  border-color:var(--phosphor);
-  background:linear-gradient(180deg, rgba(94,235,176,.09), rgba(94,235,176,.02));
-  box-shadow:inset 0 0 0 1px rgba(94,235,176,.15);
-}
+.flag.on{ border-color:var(--phosphor); background:linear-gradient(180deg, rgba(94,235,176,.09), rgba(94,235,176,.02)); box-shadow:inset 0 0 0 1px rgba(94,235,176,.15); }
 .flag .top{ display:flex; align-items:center; gap:9px; margin-bottom:5px; }
-.flag .box{
-  width:13px; height:13px; border:1px solid var(--ink-faint);
-  border-radius:2px; flex-shrink:0; position:relative;
-}
+.flag .box{ width:13px; height:13px; border:1px solid var(--ink-faint); border-radius:2px; flex-shrink:0; position:relative; }
 .flag.on .box{ border-color:var(--phosphor); }
-.flag.on .box::after{
-  content:"×"; position:absolute; inset:0; display:grid; place-items:center;
-  font-size:11px; color:var(--phosphor); line-height:0;
-}
+.flag.on .box::after{ content:"×"; position:absolute; inset:0; display:grid; place-items:center; font-size:11px; color:var(--phosphor); line-height:0; }
 .flag .name{ font-size:13px; font-weight:600; color:var(--ink); }
 .flag .desc{ font-size:11.5px; color:var(--ink-dim); margin:0; padding-left:22px; }
 
-/* ============================================================
-   INPUT — gutter + textarea, like an actual editor pane
-   ============================================================ */
-.editor{
-  display:flex;
-  border:1px solid var(--line);
-  border-radius:var(--radius);
-  background:var(--void);
-  overflow:hidden;
-}
-.gutter{
-  flex-shrink:0;
-  padding:14px 10px;
-  text-align:right;
-  color:var(--ink-faint);
-  font-size:12.5px;
-  line-height:1.65;
-  user-select:none;
-  border-right:1px solid var(--line);
-  min-width:34px;
-  white-space:pre;
-}
-textarea{
-  flex:1;
-  min-height:210px;
-  padding:14px 16px;
-  border:none;
-  background:transparent;
-  color:var(--ink);
-  font-family:'JetBrains Mono', monospace;
-  font-size:12.5px;
-  line-height:1.65;
-  resize:vertical;
-}
+.editor{ display:flex; border:1px solid var(--line); border-radius:var(--radius); background:var(--void); overflow:hidden; }
+.gutter{ flex-shrink:0; padding:14px 10px; text-align:right; color:var(--ink-faint); font-size:12.5px; line-height:1.65; user-select:none; border-right:1px solid var(--line); min-width:34px; white-space:pre; }
+textarea{ flex:1; min-height:180px; padding:14px 16px; border:none; background:transparent; color:var(--ink); font-family:'JetBrains Mono', monospace; font-size:12.5px; line-height:1.65; resize:vertical; }
 textarea::placeholder{ color:var(--ink-faint); }
 textarea:focus{ outline:none; }
 .editor:focus-within{ border-color:var(--phosphor); box-shadow:0 0 0 3px rgba(94,235,176,.1); }
 
 .run-row{ display:flex; align-items:center; gap:14px; margin-top:16px; }
-button.run{
-  padding:12px 22px;
-  border:1px solid var(--phosphor);
-  border-radius:var(--radius);
-  background:transparent;
-  color:var(--phosphor);
-  text-shadow:var(--glow);
-  font-family:'JetBrains Mono', monospace;
-  font-size:13px; font-weight:600;
-  cursor:pointer;
-  transition:background .15s, color .15s;
-}
+button.run{ padding:12px 22px; border:1px solid var(--phosphor); border-radius:var(--radius); background:transparent; color:var(--phosphor); text-shadow:var(--glow); font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:600; cursor:pointer; transition:background .15s, color .15s; }
 button.run:hover{ background:rgba(94,235,176,.1); }
 button.run:active{ transform:translateY(1px); }
-button.run:disabled{
-  border-color:var(--ink-faint); color:var(--ink-faint); text-shadow:none; cursor:not-allowed;
-}
-
+button.run:disabled{ border-color:var(--ink-faint); color:var(--ink-faint); text-shadow:none; cursor:not-allowed; }
 .spinner{ display:none; align-items:center; gap:8px; color:var(--ink-dim); font-size:12.5px; }
 .spinner .glyph{ color:var(--phosphor); text-shadow:var(--glow); width:1ch; display:inline-block; }
 
-.error{
-  display:none;
-  margin-top:14px;
-  padding:11px 14px;
-  border-radius:var(--radius);
-  border:1px solid rgba(255,92,92,.4);
-  background:rgba(255,92,92,.07);
-  color:var(--red);
-  font-size:12.5px;
-}
+.error{ display:none; margin-top:14px; padding:11px 14px; border-radius:var(--radius); border:1px solid rgba(255,92,92,.4); background:rgba(255,92,92,.07); color:var(--red); font-size:12.5px; }
 .error::before{ content:"! "; }
 
-/* ============================================================
-   RESULTS
-   ============================================================ */
-#results{ display:none; margin-top:36px; padding-top:30px; border-top:1px dashed var(--line-strong); }
-
-.stat-row{ display:flex; gap:1px; margin-bottom:26px; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
+#results{ display:none; margin-top:34px; padding-top:28px; border-top:1px dashed var(--line-strong); }
+.stat-row{ display:flex; gap:1px; margin-bottom:24px; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
 .stat{ flex:1; padding:14px 16px; background:var(--panel-2); border-right:1px solid var(--line); }
 .stat:last-child{ border-right:none; }
 .stat .k{ font-size:10.5px; color:var(--ink-dim); margin-bottom:6px; }
@@ -320,43 +219,57 @@ button.run:disabled{
 .stat .v.hit{ color:var(--red); }
 .stat .v.ok{ color:var(--phosphor); }
 
-.printout{
-  border:1px solid var(--line);
-  border-radius:var(--radius);
-  background:var(--void);
-  padding:18px 20px;
-  white-space:pre-wrap;
-  line-height:1.7;
-  font-size:12.5px;
-  color:var(--ink);
-}
+.printout{ border:1px solid var(--line); border-radius:var(--radius); background:var(--void); padding:18px 20px; white-space:pre-wrap; line-height:1.7; font-size:12.5px; color:var(--ink); }
 .printout .caret{ color:var(--phosphor); }
 
 .evidence{ margin-top:10px; }
-.ev{
-  border-left:2px solid var(--ink-faint);
-  padding:9px 14px;
-  margin-top:8px;
-  background:var(--panel-2);
-  border-radius:0 var(--radius) var(--radius) 0;
-}
+.ev{ border-left:2px solid var(--ink-faint); padding:9px 14px; margin-top:8px; background:var(--panel-2); border-radius:0 var(--radius) var(--radius) 0; }
 .ev.sev-error{ border-left-color:var(--red); }
 .ev.sev-warn{ border-left-color:var(--amber); }
 .ev.sev-info{ border-left-color:var(--phosphor); }
 .ev .rank{ font-size:10.5px; color:var(--ink-dim); margin-bottom:4px; }
 .ev .body{ font-size:12px; color:var(--ink-dim); white-space:pre-wrap; line-height:1.6; }
 
+/* ---------- diag pane ---------- */
+.diag-empty{ font-size:11.5px; color:var(--ink-faint); line-height:1.7; text-align:center; padding:30px 6px; }
+.diag-empty .glyph{ display:block; font-size:22px; margin-bottom:10px; color:var(--ink-faint); }
+
+.gauge-wrap{ display:flex; flex-direction:column; align-items:center; margin-bottom:6px; }
+.gauge-wrap svg{ overflow:visible; }
+.gauge-ring-bg{ fill:none; stroke:var(--line); stroke-width:8; }
+.gauge-ring{ fill:none; stroke:var(--phosphor); stroke-width:8; stroke-linecap:round; filter:drop-shadow(0 0 6px rgba(94,235,176,.5)); transition:stroke-dashoffset 1s cubic-bezier(.4,0,.2,1), stroke 1s; }
+.gauge-ring.danger{ stroke:var(--red); filter:drop-shadow(0 0 6px rgba(255,92,92,.5)); }
+.gauge-label{ font-size:22px; font-weight:800; fill:var(--ink); font-family:'JetBrains Mono', monospace; }
+.gauge-sub{ margin-top:8px; font-size:10.5px; color:var(--ink-dim); text-align:center; }
+
+.verdict{ margin:18px 0; text-align:center; padding:9px; border-radius:var(--radius); font-size:12px; font-weight:700; letter-spacing:.02em; border:1px solid; }
+.verdict.ok{ color:var(--phosphor); border-color:var(--phosphor); background:rgba(94,235,176,.08); }
+.verdict.bad{ color:var(--red); border-color:var(--red); background:rgba(255,92,92,.08); }
+
+.waveform{ width:100%; height:64px; margin-bottom:18px; }
+.waveform path{ fill:none; stroke:var(--phosphor); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 0 4px rgba(94,235,176,.4)); }
+
+.sev-bar-label{ display:flex; justify-content:space-between; font-size:10px; color:var(--ink-dim); margin-bottom:6px; }
+.sev-bar{ display:flex; height:8px; border-radius:4px; overflow:hidden; background:var(--panel-2); margin-bottom:18px; }
+.sev-bar span{ height:100%; }
+.sev-bar .sb-error{ background:var(--red); }
+.sev-bar .sb-warn{ background:var(--amber); }
+.sev-bar .sb-info{ background:var(--phosphor); }
+
+.diag-title{ font-size:10.5px; letter-spacing:.02em; color:var(--ink-faint); margin:0 0 10px; }
+
+@media (max-width:980px){
+  .console{ grid-template-columns:1fr; grid-template-areas:"main" "diag" "sys"; }
+  .session-bar{ flex-wrap:wrap; }
+}
 @media (max-width:640px){
   .flags{ flex-direction:column; }
-  .term-body{ padding:24px 18px 28px; }
-  .media-switch{ position:static; justify-content:flex-end; margin-bottom:18px; }
+  .pane-body{ padding:20px 16px; }
   .stat-row{ flex-direction:column; }
   .stat{ border-right:none; border-bottom:1px solid var(--line); }
 }
 
-a:focus-visible, button:focus-visible, .flag:focus-visible{
-  outline:2px solid var(--phosphor); outline-offset:2px;
-}
+a:focus-visible, button:focus-visible, .flag:focus-visible{ outline:2px solid var(--phosphor); outline-offset:2px; }
 </style>
 </head>
 
@@ -365,20 +278,45 @@ a:focus-visible, button:focus-visible, .flag:focus-visible{
 <div class="crt-overlay"></div>
 <div class="paper-overlay"></div>
 
-<div class="wrap">
-  <div class="term">
-    <div class="term-bar">
-      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-      <span class="path">logsense — /var/log/analysis</span>
-    </div>
+<div class="session-bar">
+  <span class="name">logsense</span>
+  <span class="win">0:sys</span>
+  <span class="win active">1:main*</span>
+  <span class="win">2:diag</span>
+  <span class="spacer"></span>
+  <span class="clock" id="clock">00:00:00</span>
+  <div class="media-switch">
+    <span class="lbl" id="lblCrt">crt</span>
+    <button id="mediaToggle" onclick="toggleMedia()" aria-label="Switch display mode"></button>
+    <span class="lbl" id="lblPrint">print</span>
+  </div>
+</div>
 
-    <div class="term-body" style="position:relative">
+<div class="console">
 
-      <div class="media-switch">
-        <span class="lbl" id="lblCrt">crt</span>
-        <button id="mediaToggle" onclick="toggleMedia()" aria-label="Switch display mode"></button>
-        <span class="lbl" id="lblPrint">print</span>
+  <!-- PANE 0 — system status -->
+  <div class="pane" id="pane-sys">
+    <div class="pane-tab">0 sys</div>
+    <div class="pane-body">
+      <div class="status-list">
+        <div class="status-row"><span class="led"></span><span class="name">hdfs transformer</span><span class="lat">11ms</span></div>
+        <div class="status-row"><span class="led"></span><span class="name">rag engine</span><span class="lat">38ms</span></div>
+        <div class="status-row"><span class="led"></span><span class="name">vector store</span><span class="lat">4ms</span></div>
       </div>
+      <hr class="divider">
+      <div class="uptime">session uptime<br><span class="v" id="uptime">00:00</span></div>
+      <hr class="divider">
+      <div class="tail-label">tail -f activity.log</div>
+      <div class="tail-window">
+        <div class="tail-track" id="tailTrack"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 1 — main terminal -->
+  <div class="pane active" id="pane-main">
+    <div class="pane-tab">1 main</div>
+    <div class="pane-body">
 
       <div id="boot"></div>
 
@@ -433,11 +371,51 @@ a:focus-visible, button:focus-visible, .flag:focus-visible{
       </div>
     </div>
   </div>
+
+  <!-- PANE 2 — diagnostics -->
+  <div class="pane" id="pane-diag">
+    <div class="pane-tab">2 diag</div>
+    <div class="pane-body" id="diagBody">
+      <div class="diag-empty">
+        <span class="glyph">◌</span>
+        awaiting input —<br>run an analysis to<br>populate diagnostics
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
 
 let selectedLogType = "hdfs";
+const startTime = Date.now();
+
+/* ---------- live clock + uptime ---------- */
+function pad(n){ return String(n).padStart(2,'0'); }
+setInterval(() => {
+  const now = new Date();
+  document.getElementById('clock').textContent = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  document.getElementById('uptime').textContent = pad(Math.floor(elapsed/60)) + ':' + pad(elapsed%60);
+}, 1000);
+
+/* ---------- tail -f decorative feed ---------- */
+const tailLines = [
+  "INFO  namenode heartbeat ok",
+  "INFO  block report received, 412 blocks",
+  "WARN  datanode dn-07 latency 640ms",
+  "INFO  replication factor satisfied",
+  "INFO  checkpoint written to edits.log",
+  "WARN  gc pause exceeded 400ms",
+  "INFO  client read 128MB/s",
+  "INFO  lease renewed for /user/job-221"
+];
+const track = document.getElementById('tailTrack');
+[...tailLines, ...tailLines].forEach(l => {
+  const d = document.createElement('div');
+  d.textContent = l;
+  track.appendChild(d);
+});
 
 /* ---------- media switch (crt / print) ---------- */
 function toggleMedia(){
@@ -456,7 +434,6 @@ const bootLines = [
   "mounting /var/log... ok",
   "ready."
 ];
-
 function runBoot(){
   const boot = document.getElementById('boot');
   let i = 0;
@@ -482,11 +459,8 @@ runBoot();
 /* ---------- log type ---------- */
 function selectLogType(type){
   selectedLogType = type;
-  const hdfs = document.getElementById("hdfsOption");
-  const other = document.getElementById("otherOption");
-  hdfs.classList.toggle("on", type === "hdfs");
-  other.classList.toggle("on", type === "other");
-
+  document.getElementById("hdfsOption").classList.toggle("on", type === "hdfs");
+  document.getElementById("otherOption").classList.toggle("on", type === "other");
   const input = document.getElementById("logInput");
   input.placeholder = type === "hdfs"
     ? "E1 E5 E10 E3 E8 E12"
@@ -548,7 +522,7 @@ async function analyzeLogs(){
     if (!data.success){
       throw new Error(data.message || data.rca || "analysis failed");
     }
-    displayResults(data);
+    displayResults(data, log);
   } catch (error){
     errorBox.innerText = "error — " + error.message;
     errorBox.style.display = "block";
@@ -567,7 +541,7 @@ function severityClass(text){
   return "sev-info";
 }
 
-function displayResults(data){
+function displayResults(data, rawLog){
   const results = document.getElementById("results");
   const resultGrid = document.getElementById("resultGrid");
   const rca = document.getElementById("rca");
@@ -579,8 +553,13 @@ function displayResults(data){
 
   addStat(resultGrid, "pipeline", data.pipeline || "unknown");
 
+  let severities = [];
+  let anomalous = false;
+  let confidenceValue = null;
+
   if (selectedLogType === "hdfs"){
-    const anomalous = String(data.prediction || "").toLowerCase().includes("anomal");
+    anomalous = String(data.prediction || "").toLowerCase().includes("anomal");
+    confidenceValue = Number(data.confidence) || 0;
     addStat(resultGrid, "prediction", data.prediction, anomalous ? "hit" : "ok");
     addStat(resultGrid, "confidence", data.confidence + "%");
     chunksSection.style.display = "none";
@@ -589,11 +568,14 @@ function displayResults(data){
     if (data.retrieved_chunks && data.retrieved_chunks.length > 0){
       chunksSection.style.display = "block";
       data.retrieved_chunks.forEach(item => {
+        const cls = severityClass(item.chunk);
+        severities.push(cls);
         const ev = document.createElement("div");
-        ev.className = "ev " + severityClass(item.chunk);
+        ev.className = "ev " + cls;
         ev.innerHTML = `<div class="rank">evidence ${item.rank}</div><div class="body">${escapeHtml(item.chunk)}</div>`;
         chunks.appendChild(ev);
       });
+      anomalous = severities.some(s => s === "sev-error" || s === "sev-warn");
     } else {
       chunksSection.style.display = "none";
     }
@@ -601,6 +583,8 @@ function displayResults(data){
 
   rca.innerHTML = '<span class="caret">&gt; </span>' + escapeHtml(data.rca || "no root cause analysis available.");
   results.style.display = "block";
+
+  renderDiagnostics({ selectedLogType, confidenceValue, anomalous, severities, rawLog });
   results.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
@@ -609,6 +593,90 @@ function addStat(container, label, value, cls){
   box.className = "stat";
   box.innerHTML = `<div class="k">${label}</div><div class="v ${cls || ''}">${escapeHtml(String(value))}</div>`;
   container.appendChild(box);
+}
+
+/* ---------- diagnostics pane: waveform + gauge + severity bar ---------- */
+function renderDiagnostics({ selectedLogType, confidenceValue, anomalous, severities, rawLog }){
+  const diagBody = document.getElementById("diagBody");
+
+  const wave = buildWaveform(rawLog);
+
+  let ringPct, ringLabel, ringSub, ringDanger, verdictText, verdictClass;
+
+  if (selectedLogType === "hdfs"){
+    ringPct = confidenceValue;
+    ringLabel = Math.round(confidenceValue) + "%";
+    ringSub = "model confidence";
+    ringDanger = anomalous;
+    verdictText = anomalous ? "anomaly detected" : "sequence normal";
+    verdictClass = anomalous ? "bad" : "ok";
+  } else {
+    const flagged = severities.filter(s => s !== "sev-info").length;
+    const total = Math.max(severities.length, 1);
+    ringPct = Math.round((flagged / total) * 100);
+    ringLabel = ringPct + "%";
+    ringSub = "evidence flagged";
+    ringDanger = flagged > 0;
+    verdictText = flagged > 0 ? "issue found in evidence" : "no issues in evidence";
+    verdictClass = flagged > 0 ? "bad" : "ok";
+  }
+
+  const errCount = severities.filter(s => s === "sev-error").length;
+  const warnCount = severities.filter(s => s === "sev-warn").length;
+  const infoCount = severities.filter(s => s === "sev-info").length;
+  const sevTotal = Math.max(errCount + warnCount + infoCount, 1);
+
+  const r = 44, c = 2 * Math.PI * r;
+  const offset = c * (1 - Math.min(Math.max(ringPct,0),100) / 100);
+
+  diagBody.innerHTML = `
+    <p class="diag-title">signal</p>
+    <svg class="waveform" viewBox="0 0 240 64" preserveAspectRatio="none">${wave}</svg>
+
+    <p class="diag-title">${ringSub}</p>
+    <div class="gauge-wrap">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <circle class="gauge-ring-bg" cx="60" cy="60" r="${r}"></circle>
+        <circle class="gauge-ring ${ringDanger ? 'danger' : ''}" cx="60" cy="60" r="${r}"
+          stroke-dasharray="${c}" stroke-dashoffset="${c}" transform="rotate(-90 60 60)"></circle>
+        <text x="60" y="67" text-anchor="middle" class="gauge-label">${ringLabel}</text>
+      </svg>
+    </div>
+
+    <div class="verdict ${verdictClass}">${verdictText}</div>
+
+    ${severities.length > 0 ? `
+      <p class="diag-title">evidence breakdown</p>
+      <div class="sev-bar-label"><span>error ${errCount}</span><span>warn ${warnCount}</span><span>info ${infoCount}</span></div>
+      <div class="sev-bar">
+        <span class="sb-error" style="width:${errCount/sevTotal*100}%"></span>
+        <span class="sb-warn" style="width:${warnCount/sevTotal*100}%"></span>
+        <span class="sb-info" style="width:${infoCount/sevTotal*100}%"></span>
+      </div>
+    ` : ``}
+  `;
+
+  requestAnimationFrame(() => {
+    const ring = diagBody.querySelector(".gauge-ring");
+    if (ring) ring.style.strokeDashoffset = offset;
+  });
+}
+
+function buildWaveform(text){
+  const lines = (text || "").split("\n").filter(Boolean);
+  const n = Math.max(lines.length, 6);
+  const points = [];
+  const w = 240, h = 64, mid = h/2;
+  for (let i = 0; i < 40; i++){
+    const src = lines[i % n] || "x";
+    let seed = 0;
+    for (let j = 0; j < src.length; j++) seed = (seed * 31 + src.charCodeAt(j)) % 997;
+    const amp = (seed % 100) / 100;
+    const y = mid + Math.sin(i * 0.9 + seed) * amp * (mid - 8);
+    points.push([ (i/39) * w, y ]);
+  }
+  const d = points.map((p,i) => (i === 0 ? "M" : "L") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  return `<path d="${d}"></path>`;
 }
 
 function escapeHtml(text){
