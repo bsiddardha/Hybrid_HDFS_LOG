@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>LogSense AI</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            color: #222;
+        }
+
+        /* Header */
+
+        header {
+            background: #111827;
+            color: white;
+            padding: 20px 40px;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 26px;
+        }
+
+        header p {
+            margin: 6px 0 0;
+            color: #cbd5e1;
+        }
+
+
+        /* Main Container */
+
+        .container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+
+        /* Cards */
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+
+        /* Log Type Selection */
+
+        .log-types {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .log-option {
+            flex: 1;
+            padding: 25px;
+            border: 2px solid #d1d5db;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            transition: 0.2s;
+        }
+
+        .log-option:hover {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .log-option.selected {
+            border-color: #2563eb;
+            background: #dbeafe;
+        }
+
+        .log-option h3 {
+            margin: 10px 0;
+        }
+
+        .icon {
+            font-size: 35px;
+        }
+
+
+        /* Textarea */
+
+        textarea {
+            width: 100%;
+            min-height: 250px;
+            padding: 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+
+        /* Button */
+
+        button {
+            width: 100%;
+            margin-top: 20px;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            background: #2563eb;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+
+        /* Loading */
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            font-weight: bold;
+            color: #2563eb;
+        }
+
+
+        /* Results */
+
+        #results {
+            display: none;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .result-box {
+            padding: 20px;
+            border-radius: 8px;
+            background: #f8fafc;
+            border-left: 5px solid #2563eb;
+        }
+
+        .result-box h4 {
+            margin: 0 0 8px;
+            color: #64748b;
+        }
+
+        .result-box p {
+            margin: 0;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+
+        /* RCA */
+
+        .rca-box {
+            background: #111827;
+            color: #e5e7eb;
+            padding: 25px;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            font-family: Arial, sans-serif;
+        }
+
+
+        /* Error */
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+
+
+        /* Retrieved Chunks */
+
+        .chunks {
+            margin-top: 25px;
+        }
+
+        .chunk {
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            padding: 15px;
+            margin-top: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+
+
+        /* Responsive */
+
+        @media (max-width: 700px) {
+
+            .log-types {
+                flex-direction: column;
+            }
+
+            header {
+                padding: 20px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<header>
+
+    <h1>🚀 LogSense AI</h1>
+
+    <p>
+        Intelligent Log Anomaly Detection & Root Cause Analysis
+    </p>
+
+</header>
+
+
+<div class="container">
+
+
+    <!-- LOG TYPE -->
+
+    <div class="card">
+
+        <h2>1. Select Log Type</h2>
+
+        <div class="log-types">
+
+
+            <!-- HDFS -->
+
+            <div
+                class="log-option selected"
+                id="hdfsOption"
+                onclick="selectLogType('hdfs')"
+            >
+
+                <div class="icon">🗄️</div>
+
+                <h3>HDFS Logs</h3>
+
+                <p>
+                    Transformer-based anomaly detection
+                </p>
+
+            </div>
+
+
+            <!-- OTHER -->
+
+            <div
+                class="log-option"
+                id="otherOption"
+                onclick="selectLogType('other')"
+            >
+
+                <div class="icon">📄</div>
+
+                <h3>Other Logs</h3>
+
+                <p>
+                    RAG-based Root Cause Analysis
+                </p>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+
+
+    <!-- LOG INPUT -->
+
+    <div class="card">
+
+        <h2>2. Provide Logs</h2>
+
+        <textarea
+            id="logInput"
+            placeholder="Enter HDFS event sequence...
+
+Example:
+E1 E5 E10 E3 E8"
+        ></textarea>
+
+
+        <button
+            id="analyzeButton"
+            onclick="analyzeLogs()"
+        >
+
+            🔍 Analyze Logs
+
+        </button>
+
+
+        <div
+            class="loading"
+            id="loading"
+        >
+
+            ⏳ Analyzing logs... Please wait.
+
+        </div>
+
+
+        <div
+            class="error"
+            id="error"
+        ></div>
+
+
+    </div>
+
+
+
+    <!-- RESULTS -->
+
+    <div
+        class="card"
+        id="results"
+    >
+
+        <h2>📊 Analysis Results</h2>
+
+
+        <div
+            class="result-grid"
+            id="resultGrid"
+        ></div>
+
+
+        <h3>🔍 Root Cause Analysis</h3>
+
+
+        <div
+            class="rca-box"
+            id="rca"
+        ></div>
+
+
+        <div
+            class="chunks"
+            id="chunksSection"
+        >
+
+            <h3>📚 Retrieved Log Evidence</h3>
+
+            <div id="chunks"></div>
+
+        </div>
+
+
+    </div>
+
+
+</div>
+
+
+
+<script>
+
+
+    // Default log type
+
+    let selectedLogType = "hdfs";
+
+
+
+    // ------------------------------------
+    // Select Log Type
+    // ------------------------------------
+
+    function selectLogType(type) {
+
+        selectedLogType = type;
+
+
+        const hdfs = document.getElementById("hdfsOption");
+
+        const other = document.getElementById("otherOption");
+
+
+        hdfs.classList.remove("selected");
+
+        other.classList.remove("selected");
+
+
+        if (type === "hdfs") {
+
+            hdfs.classList.add("selected");
+
+
+            document.getElementById("logInput").placeholder =
+`Enter HDFS event sequence...
+
+Example:
+
+E1 E5 E10 E3 E8 E12`;
+
+
+        } else {
+
+            other.classList.add("selected");
+
+
+            document.getElementById("logInput").placeholder =
+`Paste your system logs here...
+
+Example:
+
+2026-09-04 ERROR Database connection failed
+2026-09-04 CRITICAL Service unavailable`;
+
+        }
+
+    }
+
+
+
+    // ------------------------------------
+    // Analyze Logs
+    // ------------------------------------
+
+    async function analyzeLogs() {
+
+
+        const log = document
+            .getElementById("logInput")
+            .value
+            .trim();
+
+
+        const button = document
+            .getElementById("analyzeButton");
+
+
+        const loading = document
+            .getElementById("loading");
+
+
+        const errorBox = document
+            .getElementById("error");
+
+
+        const results = document
+            .getElementById("results");
+
+
+        // Hide old results
+
+        errorBox.style.display = "none";
+
+        results.style.display = "none";
+
+
+        // Validate
+
+        if (!log) {
+
+            errorBox.innerText =
+                "Please enter log data first.";
+
+            errorBox.style.display = "block";
+
+            return;
+
+        }
+
+
+        // Loading state
+
+        button.disabled = true;
+
+        button.innerText =
+            "⏳ Analyzing...";
+
+        loading.style.display = "block";
+
+
+        try {
+
+
+            // Call backend
+
+            const response = await fetch(
+                "/analyze",
+                {
+
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+
+                        log_type:
+                            selectedLogType,
+
+                        log:
+                            log
+
+                    })
+
+                }
+            );
+
+
+            const data =
+                await response.json();
+
+
+            // API error
+
+            if (!data.success) {
+
+                throw new Error(
+                    data.message ||
+                    data.rca ||
+                    "Analysis failed"
+                );
+
+            }
+
+
+            // Show results
+
+            displayResults(data);
+
+
+        }
+
+        catch (error) {
+
+            errorBox.innerText =
+                "Error: " + error.message;
+
+            errorBox.style.display = "block";
+
+        }
+
+        finally {
+
+
+            button.disabled = false;
+
+            button.innerText =
+                "🔍 Analyze Logs";
+
+            loading.style.display = "none";
+
+        }
+
+    }
+
+
+
+    // ------------------------------------
+    // Display Results
+    // ------------------------------------
+
+    function displayResults(data) {
+
+
+        const results =
+            document.getElementById("results");
+
+
+        const resultGrid =
+            document.getElementById("resultGrid");
+
+
+        const rca =
+            document.getElementById("rca");
+
+
+        const chunksSection =
+            document.getElementById("chunksSection");
+
+
+        const chunks =
+            document.getElementById("chunks");
+
+
+        // Clear previous results
+
+        resultGrid.innerHTML = "";
+
+        chunks.innerHTML = "";
+
+
+        // --------------------------------
+        // Pipeline
+        // --------------------------------
+
+        addResultBox(
+            resultGrid,
+            "Pipeline",
+            data.pipeline || "Unknown"
+        );
+
+
+        // --------------------------------
+        // HDFS Results
+        // --------------------------------
+
+        if (selectedLogType === "hdfs") {
+
+
+            addResultBox(
+                resultGrid,
+                "Prediction",
+                data.prediction
+            );
+
+
+            addResultBox(
+                resultGrid,
+                "Confidence",
+                data.confidence + "%"
+            );
+
+
+            chunksSection.style.display =
+                "none";
+
+
+        }
+
+
+        // --------------------------------
+        // RAG Results
+        // --------------------------------
+
+        else {
+
+
+            addResultBox(
+                resultGrid,
+                "Chunks Processed",
+                data.chunks
+            );
+
+
+            // Show retrieved chunks
+
+            if (
+                data.retrieved_chunks &&
+                data.retrieved_chunks.length > 0
+            ) {
+
+
+                chunksSection.style.display =
+                    "block";
+
+
+                data.retrieved_chunks.forEach(
+                    item => {
+
+
+                        const chunk =
+                            document.createElement("div");
+
+
+                        chunk.className =
+                            "chunk";
+
+
+                        chunk.innerHTML =
+                            `<strong>Evidence ${item.rank}</strong>
+
+${escapeHtml(item.chunk)}`;
+
+
+                        chunks.appendChild(chunk);
+
+                    }
+                );
+
+
+            }
+
+            else {
+
+                chunksSection.style.display =
+                    "none";
+
+            }
+
+        }
+
+
+        // --------------------------------
+        // RCA
+        // --------------------------------
+
+        rca.innerText =
+            data.rca ||
+            "No Root Cause Analysis available.";
+
+
+        results.style.display =
+            "block";
+
+
+        // Scroll to results
+
+        results.scrollIntoView({
+            behavior: "smooth"
+        });
+
+    }
+
+
+
+    // ------------------------------------
+    // Add Result Box
+    // ------------------------------------
+
+    function addResultBox(
+        container,
+        title,
+        value
+    ) {
+
+
+        const box =
+            document.createElement("div");
+
+
+        box.className =
+            "result-box";
+
+
+        box.innerHTML =
+            `<h4>${title}</h4>
+             <p>${escapeHtml(String(value))}</p>`;
+
+
+        container.appendChild(box);
+
+    }
+
+
+
+    // ------------------------------------
+    // Escape HTML
+    // ------------------------------------
+
+    function escapeHtml(text) {
+
+        const div =
+            document.createElement("div");
+
+        div.textContent =
+            text;
+
+        return div.innerHTML;
+
+    }
+
+
+</script>
+
+
+</body>
+
+</html>
